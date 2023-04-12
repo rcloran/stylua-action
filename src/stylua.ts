@@ -1,3 +1,4 @@
+import * as core from '@actions/core'
 import {getOctokit} from '@actions/github'
 import semver from 'semver'
 
@@ -13,24 +14,27 @@ interface GitHubRelease {
 
 async function getReleases(token: string): Promise<GitHubRelease[]> {
   const octokit = getOctokit(token)
-  const {data: releases} = await octokit.rest.repos.listReleases({
+  let {data: releases} = await octokit.rest.repos.listReleases({
     owner: 'JohnnyMorganz',
     repo: 'stylua'
   })
 
+  // Don't include drafts and pre-release
+  releases = releases.filter(r => !(r.draft || r.prerelease))
   // Sort by latest release first
   releases.sort((a, b) => semver.rcompare(a.tag_name, b.tag_name))
   return releases
-}
-
-function getLatestVersion(releases: GitHubRelease[]): string | null {
-  return semver.clean(releases[0].tag_name)
 }
 
 function chooseRelease(
   version: string,
   releases: GitHubRelease[]
 ): GitHubRelease | undefined {
+  if (version === '') {
+    core.debug('No version provided, finding latest release version')
+  } else if (version === 'latest') {
+    version = ''
+  }
   return releases.find(release => semver.satisfies(release.tag_name, version))
 }
 
@@ -88,7 +92,6 @@ function chooseAsset(release: GitHubRelease): GitHubAsset | undefined {
 
 export default {
   getReleases,
-  getLatestVersion,
   chooseRelease,
   chooseAsset
 }
